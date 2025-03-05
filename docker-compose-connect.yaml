@@ -1,0 +1,190 @@
+version: '3.9'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    platform: linux/amd64
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+
+  kafka-broker-1:
+    image: confluentinc/cp-kafka:7.3.2
+    platform: linux/amd64
+    hostname: kafka-broker-1
+    container_name: kafka-broker-1
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-1:9092,PLAINTEXT_HOST://kafka-broker-1:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
+      KAFKA_MESSAGE_MAX_BYTES: 2097152
+   #  Need below property when we have 1 broker setup
+   #  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+   #  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+   #  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+
+  kafka-broker-2:
+    image: confluentinc/cp-kafka:7.3.2
+    platform: linux/amd64
+    hostname: kafka-broker-2
+    container_name: kafka-broker-2
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9093"
+      - "29093:29093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-2:9093,PLAINTEXT_HOST://kafka-broker-2:29093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
+      KAFKA_MESSAGE_MAX_BYTES: 2097152
+   #  Need below property when we have 1 broker setup
+   #  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+   #  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+   #  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  kafka-broker-3:
+    image: confluentinc/cp-kafka:7.3.2
+    platform: linux/amd64
+    hostname: kafka-broker-3
+    container_name: kafka-broker-3
+    depends_on:
+      - zookeeper
+    ports:
+      - "9094:9094"
+      - "29094:29094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-3:9094,PLAINTEXT_HOST://kafka-broker-3:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
+      KAFKA_MESSAGE_MAX_BYTES: 2097152
+   #  Need below property when we have 1 broker setup
+   #  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+   #  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+   #  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.3.2
+    container_name: schema-registry
+    depends_on:
+      - kafka-broker-1
+      - kafka-broker-2
+      - kafka-broker-3
+    healthcheck:
+      test: curl -f http://schema-registry:8081/
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: zookeeper:2181
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka-broker-1:9092,kafka-broker-1:9093,kafka-broker-1:9094
+
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect-base:7.3.2
+    container_name: kafka-connect
+    depends_on:
+      - kafka-broker-1
+      - kafka-broker-2
+      - kafka-broker-3
+    healthcheck:
+      test: curl -f http://localhost:8083/
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - ./connect-jars:/connect-jars
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka-broker-1:9092,kafka-broker-2:9093,kafka-broker-3:9094
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: kafka-connect
+      CONNECT_CONFIG_STORAGE_TOPIC: devs_connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: devs_connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: devs_connect-status
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "[%d] %p %X{connector.context}%m (%c:%L)%n"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "3"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "3"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "3"
+      CONNECT_PRODUCER_MAX_REQUEST_SIZE: "2097152"
+      CONNECT_PLUGIN_PATH: /usr/share/java,/connect-jars
+      CONNECT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      connection-string: mysql
+      host: postgres
+      username: root
+      password: password
+      dbname: product_db
+
+  postgres:
+    image: debezium/postgres:14-alpine
+    container_name: postgres
+    hostname: postgres
+    restart: on-failure
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: product_db
+
+#pgadmin is optional, if you want DB UI admin, then use below
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=test@test.com
+      - PGADMIN_DEFAULT_PASSWORD=test
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    ports:
+      - "8888:80"
+    depends_on:
+      - postgres
+
+
+volumes:
+  postgres_data:
+  pgadmin-data:
+  connect-jars:
+
+networks:
+  default:
+    name: kafka-local-network
+    driver: bridge
+
+
+
+
+
+      

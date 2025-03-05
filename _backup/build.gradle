@@ -1,0 +1,76 @@
+plugins {
+	id 'java'
+	id 'com.github.johnrengelman.shadow' version '7.1.2'
+	id 'io.freefair.lombok' version "8.6"
+}
+
+group = 'com.devs.kafka'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(11)
+	}
+}
+
+build {
+	dependsOn shadowJar
+}
+
+repositories {
+	mavenCentral()
+	maven {
+		url "https://packages.confluent.io/maven"
+	}
+}
+
+
+dependencies {
+	implementation "io.confluent:confluent-log4j:1.2.17-cp12"
+	implementation "commons-io:commons-io:2.15.1"
+	implementation "com.fasterxml.jackson.core:jackson-annotations:2.16.1"
+	implementation "com.fasterxml.jackson.core:jackson-databind:2.16.1"
+	implementation "org.apache.groovy:groovy-jsr223:4.0.24"
+	implementation "org.apache.groovy:groovy:4.0.24"
+	implementation "io.debezium:debezium-scripting:2.6.1.Final"
+	implementation "org.apache.kafka:connect-api:7.3.2-ce"
+	implementation "org.apache.kafka:connect-transforms:7.3.2-ce"
+	compileOnly "org.slf4j:slf4j-api:2.0.12"
+	compileOnly "org.slf4j:slf4j-simple:2.0.12"
+	compileOnly "io.debezium:debezium-core:2.6.1.Final"
+	compileOnly "io.debezium:debezium-api:2.6.1.Final"
+	runtimeOnly "io.debezium:debezium-connector-postgres:2.6.1.Final"
+	runtimeOnly("io.confluent:kafka-connect-jdbc:10.7.4") {
+		exclude group: 'com.microsoft.sqlserver', module: 'mssql-jdbc'
+		exclude group: 'com.oracle.database.nls'
+		exclude group: 'net.sourceforge.jtds', module: 'jtds'
+		exclude group: 'org.xerial', module: 'sqlite-jdbc'
+	}
+	runtimeOnly "org.postgresql:postgresql:42.7.3"
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+ext.getHash = {
+	def p1 = "git -C ${rootDir} rev-parse --short HEAD".execute()
+	p1.waitFor()
+	return p1.text.trim()
+}
+
+shadowJar {
+	archiveFileName = "ecommerce-kafka-connect-all.jar"
+	manifest {
+		attributes(
+				'Built-By': System.properties['user.name'],
+				'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
+				'Build-Revision': getHash(),
+				'Created-By': "Gradle ${gradle.gradleVersion}",
+				'Build-Jdk': "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
+				'Build-OS': "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}",
+				'Implementation-Title': project.name,
+				'Implementation-Version': project.version
+		)
+	}
+}

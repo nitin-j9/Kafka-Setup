@@ -1,0 +1,8 @@
+##Increase Kafka producer (connect) message size capacity (In docker compose)
+
+
+
+##Increase Kafka server(brokers) message size capacity (In docker compose)
+KAFKA_MESSAGE_MAX_BYTES: 100000
+
+
